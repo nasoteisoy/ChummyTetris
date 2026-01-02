@@ -749,7 +749,7 @@
                 pauseBtn.textContent = '▶ Resume';
                 pauseBtn.classList.add('paused');
             } else {
-                pauseBtn.textContent = 'Baby Pause Button';
+                pauseBtn.textContent = 'Baby Panic Button';
                 pauseBtn.classList.remove('paused');
                 lastDropTime = performance.now(); // Reset drop timer
             }
@@ -764,7 +764,7 @@
             document.getElementById('gameOver').classList.remove('show');
             document.getElementById('submitScore').disabled = false;
             document.getElementById('submitScore').textContent = 'Submit Score';
-            document.getElementById('pauseBtn').textContent = 'Baby Pause Button';
+            document.getElementById('pauseBtn').textContent = 'Baby Panic Button';
             document.getElementById('pauseBtn').classList.remove('paused');
             currentPiece = createPiece();
             lastDropTime = performance.now();
