@@ -301,8 +301,8 @@
         <canvas id="gameCanvas"></canvas>
         <div id="controls">
             <button class="control-btn" id="leftBtn">
-                <div class="icon">◄</div>
-                <div class="label">Left</div>
+                <div class="icon">↺</div>
+                <div class="label">Counter-CW</div>
             </button>
             <button class="control-btn" id="rotateBtn">
                 <div class="icon">↻</div>
@@ -313,8 +313,8 @@
                 <div class="label">Down</div>
             </button>
             <button class="control-btn" id="rightBtn">
-                <div class="icon">►</div>
-                <div class="label">Right</div>
+                <div class="icon">↻</div>
+                <div class="label">Clockwise</div>
             </button>
         </div>
         <div id="highScores">
@@ -675,13 +675,13 @@
             }
         }
 
-        function moveLeft() {
+        function moveCounterClockwise() {
             if (!checkCollision(currentPiece, 0, -1)) {
                 currentPiece.segment = (currentPiece.segment - 1 + SEGMENTS) % SEGMENTS;
             }
         }
 
-        function moveRight() {
+        function moveClockwise() {
             if (!checkCollision(currentPiece, 0, 1)) {
                 currentPiece.segment = (currentPiece.segment + 1) % SEGMENTS;
             }
@@ -781,7 +781,7 @@
         // Controls
         document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (!isPaused && !isGameOver) moveLeft();
+            if (!isPaused && !isGameOver) moveCounterClockwise();
         });
 
         document.getElementById('rotateBtn').addEventListener('touchstart', (e) => {
@@ -791,7 +791,7 @@
 
         document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (!isPaused && !isGameOver) moveRight();
+            if (!isPaused && !isGameOver) moveClockwise();
         });
 
         document.getElementById('downBtn').addEventListener('touchstart', (e) => {
@@ -825,8 +825,8 @@
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
             if (isPaused || isGameOver) return;
-            if (e.key === 'ArrowLeft') moveLeft();
-            if (e.key === 'ArrowRight') moveRight();
+            if (e.key === 'ArrowLeft') moveCounterClockwise();
+            if (e.key === 'ArrowRight') moveClockwise();
             if (e.key === 'ArrowUp') rotate();
             if (e.key === 'ArrowDown') moveDown();
         });
