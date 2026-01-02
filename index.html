@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Chummy Tetris</title>
+    <title>Chummy Ripples</title>
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -568,7 +568,7 @@
         
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
-        const scoresRef = database.ref('circleTetris/highScores');
+        const scoresRef = database.ref('circleRipples/highScores');
         
         // Game constants
         const SEGMENTS = 10;
@@ -599,7 +599,7 @@
         let isPaused = false;
         let isGameOver = false;
 
-        // Tetris piece shapes (in segment units)
+        // Ripples piece shapes (in segment units)
         // Each block position is calculated as: ring * SEGMENTS + segment_offset
         // Each piece has 4 rotation states
         const PIECES = [
