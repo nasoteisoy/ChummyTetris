@@ -110,6 +110,7 @@
             font-size: 14px;
             overflow-y: auto;
             flex: 1;
+            scroll-behavior: smooth;
         }
 
         #scoresList::-webkit-scrollbar {
@@ -145,6 +146,11 @@
             color: #FFD700;
             font-weight: bold;
             margin-right: 10px;
+            min-width: 35px;
+        }
+
+        #scoresList .rank.top3 {
+            font-size: 16px;
         }
 
         #scoresList .name {
@@ -413,9 +419,9 @@
                 name: 'L',
                 rotations: [
                     [0, 1, 2, 10],      // ═══╗ (horizontal with corner down-left)
-                    [0, 10, 20, 21]     // ═║  (vertical with corner bottom-right)
+                    [0, 10, 20, 21],    // ═║  (vertical with corner bottom-right)
                     [2, 10, 11, 12],    // ╔═══ (horizontal with corner up-right)
-                    [0, 1, 11, 21],     // ║═  (vertical with corner top-right)
+                    [0, 1, 11, 21]      // ║═  (vertical with corner top-right)
                 ],
                 color: '#FFA07A' 
             },
@@ -423,9 +429,9 @@
                 name: 'J',
                 rotations: [
                     [0, 1, 2, 12],      // ═══╝ (horizontal with corner down-right)
-                    [0, 1, 10, 20]      // ║═  (vertical with corner bottom-left)
+                    [0, 1, 10, 20],     // ║═  (vertical with corner bottom-left)
                     [0, 10, 11, 12],    // ╚═══ (horizontal with corner up-left)
-                    [1, 11, 20, 21],    // ═║  (vertical with corner top-left)
+                    [1, 11, 20, 21]     // ═║  (vertical with corner top-left)
                 ],
                 color: '#98D8C8' 
             },
@@ -473,7 +479,7 @@
 
         // High Score Functions
         function loadHighScores() {
-            scoresRef.orderByChild('score').limitToLast(20).on('value', (snapshot) => {
+            scoresRef.orderByChild('score').limitToLast(50).on('value', (snapshot) => {
                 const scores = [];
                 snapshot.forEach((childSnapshot) => {
                     scores.push({
@@ -499,7 +505,7 @@
             
             scoresList.innerHTML = scores.map((entry, index) => `
                 <li>
-                    <span class="rank">#${index + 1}</span>
+                    <span class="rank ${index < 3 ? 'top3' : ''}">#${index + 1}</span>
                     <span class="name">${escapeHtml(entry.name)}</span>
                     <span class="score">${entry.score}</span>
                 </li>
@@ -519,47 +525,34 @@
             }
             
             try {
-                // Get current top 5
-                const snapshot = await scoresRef.orderByChild('score').limitToLast(5).once('value');
-                const scores = [];
+                // Add new score
+                await scoresRef.push({
+                    name: name.trim(),
+                    score: score,
+                    timestamp: Date.now()
+                });
+                
+                // Clean up: keep only top 50 scores
+                const snapshot = await scoresRef.orderByChild('score').once('value');
+                const allScores = [];
                 snapshot.forEach((childSnapshot) => {
-                    scores.push({
+                    allScores.push({
                         id: childSnapshot.key,
                         score: childSnapshot.val().score
                     });
                 });
                 
-                scores.sort((a, b) => b.score - a.score);
+                allScores.sort((a, b) => a.score - b.score); // Sort ascending (lowest first)
                 
-                // Check if this score makes top 5
-                if (scores.length < 5 || score > scores[scores.length - 1].score) {
-                    // Add new score
-                    await scoresRef.push({
-                        name: name.trim(),
-                        score: score,
-                        timestamp: Date.now()
-                    });
-                    
-                    // If we now have more than 5, remove the lowest
-                    const newSnapshot = await scoresRef.orderByChild('score').limitToLast(6).once('value');
-                    const allScores = [];
-                    newSnapshot.forEach((childSnapshot) => {
-                        allScores.push({
-                            id: childSnapshot.key,
-                            score: childSnapshot.val().score
-                        });
-                    });
-                    
-                    allScores.sort((a, b) => a.score - b.score);
-                    
-                    if (allScores.length > 5) {
-                        await scoresRef.child(allScores[0].id).remove();
+                // Remove excess scores beyond top 50
+                if (allScores.length > 50) {
+                    const toRemove = allScores.slice(0, allScores.length - 50);
+                    for (const entry of toRemove) {
+                        await scoresRef.child(entry.id).remove();
                     }
-                    
-                    return true;
                 }
                 
-                return false;
+                return true;
             } catch (error) {
                 console.error('Error submitting score:', error);
                 alert('Error submitting score. Please try again.');
@@ -821,7 +814,7 @@
                 alert('Score submitted successfully!');
                 restart();
             } else {
-                alert('Score not high enough for top 5!');
+                alert('Error submitting score. Please try again.');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit Score';
             }
