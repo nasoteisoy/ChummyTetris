@@ -29,6 +29,7 @@
             overflow-x: hidden;
             touch-action: pan-y;
             padding: 20px 0;
+            transition: background 2s ease;
         }
 
         #gameContainer {
@@ -51,31 +52,19 @@
             padding: 0 10px;
         }
 
-        #scoreInfo {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
         #score {
             color: white;
             font-size: 24px;
             font-weight: bold;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            flex: 1;
         }
 
-        #level {
-            color: #FFD700;
-            font-size: 16px;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
-
-        #lines {
-            color: rgba(255, 255, 255, 0.8);
+        #difficultyLevel {
+            color: rgba(255, 255, 255, 0.9);
             font-size: 14px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
 
         #version {
@@ -428,13 +417,6 @@
             font-size: 24px;
         }
 
-        #gameOverStats {
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 18px;
-            text-align: center;
-            line-height: 1.6;
-        }
-
         #nameInput {
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.3);
@@ -485,38 +467,10 @@
         #restartBtn:active {
             background: #45a049;
         }
-
-        #levelUpNotification {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 215, 0, 0.95);
-            color: #333;
-            font-size: 32px;
-            font-weight: bold;
-            padding: 30px 50px;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-            z-index: 1500;
-            animation: levelUpPulse 0.5s ease-in-out;
-        }
-
-        #levelUpNotification.show {
-            display: block;
-        }
-
-        @keyframes levelUpPulse {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); }
-            50% { transform: translate(-50%, -50%) scale(1.1); }
-        }
     </style>
 </head>
 <body>
-    <div id="version">v2.0</div>
-    
-    <div id="levelUpNotification">Level Up! 🎉</div>
+    <div id="version">v1.19</div>
     
     <div id="menuOverlay">
         <div id="menuContent">
@@ -566,11 +520,8 @@
 
     <div id="gameContainer">
         <div id="scoreRow">
-            <div id="scoreInfo">
-                <div id="score">Score: 0</div>
-                <div id="level">Level: 1</div>
-                <div id="lines">Lines: 0</div>
-            </div>
+            <div id="score">Score: 0</div>
+            <div id="difficultyLevel">Level: 1</div>
             <button id="pauseBtn">Panic Button (Menu)</button>
         </div>
         <canvas id="gameCanvas"></canvas>
@@ -604,7 +555,6 @@
     <div id="gameOver">
         <h2>Game Over!</h2>
         <p id="finalScore">Score: 0</p>
-        <div id="gameOverStats"></div>
         <button id="restartBtn">Play Again</button>
         <input type="text" id="nameInput" placeholder="Enter your name" maxlength="20">
         <button id="submitScore">Submit Score</button>
@@ -632,13 +582,12 @@
         // Game constants
         const SEGMENTS = 10;
         const RINGS = 20;
-        const CENTER_HOLE_RINGS = 3;
+        const CENTER_HOLE_RINGS = 3; // Empty rings in the center
         
-        // Level system constants
-        const LINES_PER_LEVEL = 10;
-        const BASE_DROP_INTERVAL = 800;
-        const MIN_DROP_INTERVAL = 100;
-        const SPEED_INCREASE_PER_LEVEL = 50;
+        // Difficulty progression
+        const INITIAL_DROP_INTERVAL = 800;
+        const MIN_DROP_INTERVAL = 200;
+        const LEVEL_THRESHOLD = 500; // Points needed to advance to next level
         
         // Responsive canvas sizing
         function resizeCanvas() {
@@ -658,15 +607,96 @@
         let grid = Array(RINGS).fill().map(() => Array(SEGMENTS).fill(0));
         let score = 0;
         let level = 1;
-        let linesCleared = 0;
         let currentPiece = null;
         let gameLoop = null;
-        let dropInterval = BASE_DROP_INTERVAL;
+        let dropInterval = INITIAL_DROP_INTERVAL;
         let lastDropTime = 0;
         let isPaused = false;
         let isGameOver = false;
 
-        // Ripples piece shapes
+        // Background color progression
+        const colorStops = [
+            { level: 1, color1: '#667eea', color2: '#764ba2' },   // Purple (easy)
+            { level: 5, color1: '#4facfe', color2: '#00f2fe' },   // Blue (medium)
+            { level: 10, color1: '#43e97b', color2: '#38f9d7' },  // Green-Cyan (harder)
+            { level: 15, color1: '#fa709a', color2: '#fee140' },  // Pink-Yellow (challenging)
+            { level: 20, color1: '#ff6b6b', color2: '#ffd93d' },  // Red-Yellow (hard)
+            { level: 25, color1: '#ee0979', color2: '#ff6a00' },  // Red-Orange (very hard)
+            { level: 30, color1: '#8e2de2', color2: '#4a00e0' }   // Deep purple (extreme)
+        ];
+
+        function updateBackgroundColor() {
+            let color1, color2;
+            
+            // Find the appropriate color range
+            for (let i = 0; i < colorStops.length; i++) {
+                if (level >= colorStops[i].level) {
+                    if (i === colorStops.length - 1 || level < colorStops[i + 1].level) {
+                        // Interpolate between current and next color stop
+                        const current = colorStops[i];
+                        const next = colorStops[Math.min(i + 1, colorStops.length - 1)];
+                        
+                        if (i === colorStops.length - 1) {
+                            color1 = current.color1;
+                            color2 = current.color2;
+                        } else {
+                            const levelRange = next.level - current.level;
+                            const progress = (level - current.level) / levelRange;
+                            
+                            color1 = interpolateColor(current.color1, next.color1, progress);
+                            color2 = interpolateColor(current.color2, next.color2, progress);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            document.body.style.background = `linear-gradient(135deg, ${color1} 0%, ${color2} 100%)`;
+        }
+
+        function interpolateColor(color1, color2, factor) {
+            const c1 = hexToRgb(color1);
+            const c2 = hexToRgb(color2);
+            
+            const r = Math.round(c1.r + factor * (c2.r - c1.r));
+            const g = Math.round(c1.g + factor * (c2.g - c1.g));
+            const b = Math.round(c1.b + factor * (c2.b - c1.b));
+            
+            return rgbToHex(r, g, b);
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 0, g: 0, b: 0 };
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function updateDifficulty() {
+            const newLevel = Math.floor(score / LEVEL_THRESHOLD) + 1;
+            if (newLevel !== level) {
+                level = newLevel;
+                
+                // Decrease drop interval (speed up) as level increases
+                dropInterval = Math.max(
+                    MIN_DROP_INTERVAL,
+                    INITIAL_DROP_INTERVAL - (level - 1) * 50
+                );
+                
+                document.getElementById('difficultyLevel').textContent = `Level: ${level}`;
+                updateBackgroundColor();
+            }
+        }
+
+        // Ripples piece shapes (in segment units)
+        // Each block position is calculated as: ring * SEGMENTS + segment_offset
+        // Each piece has 4 rotation states
         const PIECES = [
             { 
                 name: 'I2',
@@ -701,20 +731,20 @@
             { 
                 name: 'L',
                 rotations: [
-                    [0, 1, 2, 10],
-                    [0, 10, 20, 21],
-                    [2, 10, 11, 12],
-                    [0, 1, 11, 21]
+                    [0, 1, 2, 10],      // ═══╗ (horizontal with corner down-left)
+                    [0, 10, 20, 21],    // ═║  (vertical with corner bottom-right)
+                    [2, 10, 11, 12],    // ╔═══ (horizontal with corner up-right)
+                    [0, 1, 11, 21]      // ║═  (vertical with corner top-right)
                 ],
                 color: '#FFA07A' 
             },
             { 
                 name: 'J',
                 rotations: [
-                    [0, 1, 2, 12],
-                    [0, 1, 10, 20],
-                    [0, 10, 11, 12],
-                    [1, 11, 20, 21]
+                    [0, 1, 2, 12],      // ═══╝ (horizontal with corner down-right)
+                    [0, 1, 10, 20],     // ║═  (vertical with corner bottom-left)
+                    [0, 10, 11, 12],    // ╚═══ (horizontal with corner up-left)
+                    [1, 11, 20, 21]     // ═║  (vertical with corner top-left)
                 ],
                 color: '#98D8C8' 
             },
@@ -760,34 +790,6 @@
             },
         ];
 
-        // Level management
-        function updateLevel() {
-            const newLevel = Math.floor(linesCleared / LINES_PER_LEVEL) + 1;
-            
-            if (newLevel > level) {
-                level = newLevel;
-                dropInterval = Math.max(
-                    MIN_DROP_INTERVAL,
-                    BASE_DROP_INTERVAL - ((level - 1) * SPEED_INCREASE_PER_LEVEL)
-                );
-                
-                // Show level up notification
-                showLevelUpNotification();
-                
-                document.getElementById('level').textContent = `Level: ${level}`;
-            }
-        }
-
-        function showLevelUpNotification() {
-            const notification = document.getElementById('levelUpNotification');
-            notification.textContent = `Level ${level}! 🎉`;
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 1500);
-        }
-
         // High Score Functions
         function loadHighScores() {
             scoresRef.orderByChild('score').limitToLast(50).on('value', (snapshot) => {
@@ -799,7 +801,9 @@
                     });
                 });
                 
+                // Sort by score descending
                 scores.sort((a, b) => b.score - a.score);
+                
                 displayHighScores(scores);
             });
         }
@@ -827,21 +831,21 @@
             return div.innerHTML;
         }
         
-        async function submitHighScore(name, score, level, lines) {
+        async function submitHighScore(name, score) {
             if (!name || name.trim() === '') {
                 alert('Please enter your name!');
                 return false;
             }
             
             try {
+                // Add new score
                 await scoresRef.push({
                     name: name.trim(),
                     score: score,
-                    level: level,
-                    lines: lines,
                     timestamp: Date.now()
                 });
                 
+                // Clean up: keep only top 50 scores
                 const snapshot = await scoresRef.orderByChild('score').once('value');
                 const allScores = [];
                 snapshot.forEach((childSnapshot) => {
@@ -851,8 +855,9 @@
                     });
                 });
                 
-                allScores.sort((a, b) => a.score - b.score);
+                allScores.sort((a, b) => a.score - b.score); // Sort ascending (lowest first)
                 
+                // Remove excess scores beyond top 50
                 if (allScores.length > 50) {
                     const toRemove = allScores.slice(0, allScores.length - 50);
                     for (const entry of toRemove) {
@@ -967,24 +972,20 @@
         }
 
         function checkLines() {
-            let newLinesCleared = 0;
+            let linesCleared = 0;
             for (let r = RINGS - 1; r >= CENTER_HOLE_RINGS; r--) {
                 if (grid[r].every(cell => cell !== 0)) {
                     grid.splice(r, 1);
                     grid.unshift(Array(SEGMENTS).fill(0));
-                    newLinesCleared++;
-                    r++;
+                    linesCleared++;
+                    r++; // Check same ring again
                 }
             }
             
-            if (newLinesCleared > 0) {
-                linesCleared += newLinesCleared;
-                score += newLinesCleared * 100 * newLinesCleared * level;
-                
+            if (linesCleared > 0) {
+                score += linesCleared * 100 * linesCleared;
                 document.getElementById('score').textContent = `Score: ${score}`;
-                document.getElementById('lines').textContent = `Lines: ${linesCleared}`;
-                
-                updateLevel();
+                updateDifficulty();
             }
         }
 
@@ -1001,6 +1002,7 @@
         }
 
         function rotate() {
+            // Get next rotation state
             const nextRotationIndex = (currentPiece.rotationIndex + 1) % 4;
             const nextBlocks = [...currentPiece.rotations[nextRotationIndex]];
             
@@ -1037,15 +1039,15 @@
             gameLoop = null;
             
             document.getElementById('gameOver').classList.add('show');
-            document.getElementById('finalScore').textContent = `Score: ${score}`;
-            document.getElementById('gameOverStats').innerHTML = 
-                `Level Reached: ${level}<br>Lines Cleared: ${linesCleared}`;
+            document.getElementById('finalScore').textContent = `Score: ${score} (Level ${level})`;
             document.getElementById('nameInput').value = '';
             document.getElementById('nameInput').focus();
         }
 
         function togglePause() {
-            if (isGameOver) return;
+            if (isGameOver) return; // Don't allow pause when game is over
+            
+            // Open the menu (which will auto-pause the game)
             openMenu();
         }
 
@@ -1054,19 +1056,16 @@
             grid = Array(RINGS).fill().map(() => Array(SEGMENTS).fill(0));
             score = 0;
             level = 1;
-            linesCleared = 0;
-            dropInterval = BASE_DROP_INTERVAL;
+            dropInterval = INITIAL_DROP_INTERVAL;
             isPaused = false;
-            
             document.getElementById('score').textContent = 'Score: 0';
-            document.getElementById('level').textContent = 'Level: 1';
-            document.getElementById('lines').textContent = 'Lines: 0';
+            document.getElementById('difficultyLevel').textContent = 'Level: 1';
             document.getElementById('gameOver').classList.remove('show');
             document.getElementById('submitScore').disabled = false;
             document.getElementById('submitScore').textContent = 'Submit Score';
             document.getElementById('pauseBtn').textContent = 'Panic Button (Menu)';
             document.getElementById('pauseBtn').classList.remove('paused');
-            
+            updateBackgroundColor();
             currentPiece = createPiece();
             lastDropTime = performance.now();
             gameLoop = requestAnimationFrame(update);
@@ -1089,6 +1088,7 @@
         // Menu Functions
         function openMenu() {
             document.getElementById('menuOverlay').classList.add('show');
+            // Auto-pause game when menu opens if game is running
             if (!isGameOver && !isPaused) {
                 isPaused = true;
                 score -= 100;
@@ -1104,12 +1104,13 @@
             document.getElementById('scoresSection').style.display = 'none';
             document.getElementById('piecesSection').style.display = 'none';
             
+            // Unpause game when closing menu
             if (!isGameOver && isPaused) {
                 isPaused = false;
                 const pauseBtn = document.getElementById('pauseBtn');
                 pauseBtn.textContent = 'Panic Button (Menu)';
                 pauseBtn.classList.remove('paused');
-                lastDropTime = performance.now();
+                lastDropTime = performance.now(); // Reset drop timer
             }
         }
 
@@ -1120,6 +1121,7 @@
             section.style.display = 'block';
             document.getElementById('piecesSection').style.display = 'none';
             
+            // Load scores from Firebase
             scoresRef.orderByChild('score').limitToLast(50).once('value', (snapshot) => {
                 const scores = [];
                 snapshot.forEach((childSnapshot) => {
@@ -1163,6 +1165,7 @@
                 `;
             }).join('');
             
+            // Draw each piece flat on its canvas
             PIECES.forEach(piece => {
                 const canvas = document.getElementById(`piece-canvas-${piece.name}`);
                 const ctx = canvas.getContext('2d');
@@ -1175,6 +1178,7 @@
                 const displayWidth = canvas.offsetWidth;
                 const displayHeight = canvas.offsetHeight;
                 
+                // Get bounding box of piece
                 const blocks = piece.rotations[0];
                 let minRow = Infinity, maxRow = -Infinity;
                 let minCol = Infinity, maxCol = -Infinity;
@@ -1195,6 +1199,7 @@
                 const offsetX = (displayWidth - pieceWidth * cellSize) / 2;
                 const offsetY = (displayHeight - pieceHeight * cellSize) / 2;
                 
+                // Draw blocks
                 blocks.forEach(offset => {
                     const row = Math.floor(offset / SEGMENTS) - minRow;
                     const col = (offset % SEGMENTS) - minCol;
@@ -1212,7 +1217,7 @@
             });
         }
 
-        // Event listeners
+        // Menu event listeners
         document.getElementById('pauseBtn').addEventListener('click', togglePause);
         document.getElementById('closeMenuBtn').addEventListener('click', closeMenu);
         
@@ -1260,7 +1265,7 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Submitting...';
             
-            const success = await submitHighScore(name, score, level, linesCleared);
+            const success = await submitHighScore(name, score);
             
             if (success) {
                 alert('Score submitted successfully!');
